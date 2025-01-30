@@ -489,7 +489,6 @@ export default function Home() {
     const result_p16_zero_offset = calc_side_1(p15_16_len,normalize180((180 - result_angle1.angle_C)*(j5_minus?-1:1)))
     const p16_zero_offset_pos = quaternionToRotation(baseq,{x:0,y:result_p16_zero_offset.a,z:result_p16_zero_offset.b})
     const p16_zero_pos = pos_add(p15_pos,p16_zero_offset_pos)
-//    console.log(`p16_zero_pos:{x:${p16_zero_pos.x}, y:${p16_zero_pos.y}, z:${p16_zero_pos.z}}`)
 
     const distance_16_16 = Math.min(round(distance(p16_zero_pos,p16_pos)),result_p16_zero_offset.b*2)
     const result_angle2 = degree3(result_p16_zero_offset.b,result_p16_zero_offset.b,distance_16_16)
@@ -500,19 +499,13 @@ export default function Home() {
     }
     const direction_offset = normalize180(wrist_direction - wk_j1_rotate)
     const j4_base = result_angle2.angle_C * (direction_offset<0?-1:1)
-    let wk_j4_rotate = normalize180(round(j4_base))
-//    console.log(`wk_j4_rotate:${wk_j4_rotate}`)
+
+    let wk_j4_rotate = normalize180(round(j4_base))*(j5_minus?-1:1)
     if(wk_j4_rotate<-90){
       wk_j4_rotate = normalize180(round(j4_base-(j4_base+90)*2))
-//      console.log(`test1:${wk_j4_rotate}`)
-      //wk_j4_rotate = -90
-      //dsp_message = "j4_rotate 指定可能範囲外！"
     }else
     if(wk_j4_rotate>90){
       wk_j4_rotate = normalize180(round(j4_base-(j4_base-90)*2))
-//      console.log(`test2:${wk_j4_rotate}`)
-      //wk_j4_rotate = 90
-      //dsp_message = "j4_rotate 指定可能範囲外！"
     }
 
     baseq.multiply(
