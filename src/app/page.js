@@ -3,6 +3,15 @@ import * as React from 'react'
 import * as THREE from 'three';
 import Controller from './controller.js'
 
+
+import { connectMQTT, mqttclient, subscribeMQTT, publishMQTT } from './MQTT.js'
+const MQTT_CTRL_TOPIC = "piper/vr";
+const MQTT_ROBOT_STATE_TOPIC = "piper/real";
+
+let publish = true //VRモードに移行するまではMQTTをpublishしない（かつ、ロボット情報を取得するまで）
+let receive_state = true // ロボットの状態を受信してるかのフラグ
+
+
 export default function Home() {
   const [now, setNow] = React.useState(new Date())
   const [rendered,set_rendered] = React.useState(false)
@@ -45,6 +54,9 @@ export default function Home() {
 
   const [controller_object,set_controller_object] = React.useState(new THREE.Object3D())
   const [trigger_on,set_trigger_on] = React.useState(false)
+  const [grip_on, set_grip_on] = React.useState(false)
+  const [button_a_on, set_button_a_on] = React.useState(false)
+  const [button_b_on, set_button_b_on] = React.useState(false)
   const [start_pos,set_start_pos] = React.useState(new THREE.Vector4())
   const [save_target,set_save_target] = React.useState()
   const [vr_mode,set_vr_mode] = React.useState(false)
@@ -477,7 +489,7 @@ export default function Home() {
     const result_p16_zero_offset = calc_side_1(p15_16_len,normalize180((180 - result_angle1.angle_C)*(j5_minus?-1:1)))
     const p16_zero_offset_pos = quaternionToRotation(baseq,{x:0,y:result_p16_zero_offset.a,z:result_p16_zero_offset.b})
     const p16_zero_pos = pos_add(p15_pos,p16_zero_offset_pos)
-    console.log(`p16_zero_pos:{x:${p16_zero_pos.x}, y:${p16_zero_pos.y}, z:${p16_zero_pos.z}}`)
+//    console.log(`p16_zero_pos:{x:${p16_zero_pos.x}, y:${p16_zero_pos.y}, z:${p16_zero_pos.z}}`)
 
     const distance_16_16 = Math.min(round(distance(p16_zero_pos,p16_pos)),result_p16_zero_offset.b*2)
     const result_angle2 = degree3(result_p16_zero_offset.b,result_p16_zero_offset.b,distance_16_16)
@@ -489,16 +501,16 @@ export default function Home() {
     const direction_offset = normalize180(wrist_direction - wk_j1_rotate)
     const j4_base = result_angle2.angle_C * (direction_offset<0?-1:1)
     let wk_j4_rotate = normalize180(round(j4_base))
-    console.log(`wk_j4_rotate:${wk_j4_rotate}`)
+//    console.log(`wk_j4_rotate:${wk_j4_rotate}`)
     if(wk_j4_rotate<-90){
       wk_j4_rotate = normalize180(round(j4_base-(j4_base+90)*2))
-      console.log(`test1:${wk_j4_rotate}`)
+//      console.log(`test1:${wk_j4_rotate}`)
       //wk_j4_rotate = -90
       //dsp_message = "j4_rotate 指定可能範囲外！"
     }else
     if(wk_j4_rotate>90){
       wk_j4_rotate = normalize180(round(j4_base-(j4_base-90)*2))
-      console.log(`test2:${wk_j4_rotate}`)
+//      console.log(`test2:${wk_j4_rotate}`)
       //wk_j4_rotate = 90
       //dsp_message = "j4_rotate 指定可能範囲外！"
     }
@@ -635,6 +647,25 @@ export default function Home() {
     return {k:kakudo, t:takasa}
   }
 
+  // XR のレンダリングフレーム毎に MQTTを呼び出したい
+  const onXRFrameMQTT = (time, frame)=> {
+    // for next frame
+    frame.session.requestAnimationFrame(onXRFrameMQTT);
+
+    if ((mqttclient != null) && publish) {
+
+    // MQTT 送信
+      const ctl_json = JSON.stringify({
+        time: time,
+        rotate: rotate,
+        trigger: [grip_on, button_a_on, button_b_on]
+      });
+
+      publishMQTT(MQTT_CTRL_TOPIC, ctl_json);
+    }
+
+  }
+
   React.useEffect(() => {
     if(rendered){
       const box15_result = getposq(p15_object)
@@ -653,7 +684,7 @@ export default function Home() {
     if (typeof window !== "undefined") {
       require("aframe");
       setTimeout(set_rendered(true),1)
-      console.log('set_rendered')
+//      console.log('set_rendered')
 
       if(!registered){
         registered = true
@@ -747,14 +778,24 @@ export default function Home() {
               set_save_target(undefined)
               set_trigger_on(false)
             });
+            this.el.addEventListener('gripdown', (evt) => {
+              set_grip_on(true);
+            });
+            this.el.addEventListener('gripup', (evt) => {
+              set_grip_on(false);
+            });
           }
         });
         AFRAME.registerComponent('scene', {
           schema: {type: 'string', default: ''},
           init: function () {
+            this.el.lastsent = 0; //最終 MQTT 伝送時刻
             this.el.addEventListener('enter-vr', ()=>{
               set_vr_mode(true)
               console.log('enter-vr')
+              let xrSession = this.el.renderer.xr.getSession();
+              xrSession.requestAnimationFrame(onXRFrameMQTT);
+
               //set_target({x:target.x,y:target.y,z:target.z*-1})
             });
             this.el.addEventListener('exit-vr', ()=>{
@@ -763,6 +804,35 @@ export default function Home() {
             });
           }
         });
+
+        
+        // MQTT 関係
+        if (typeof window.mqttClient === 'undefined') {
+          //サブスクライブするトピックの登録
+          window.mqttClient = connectMQTT();
+          subscribeMQTT([
+            MQTT_ROBOT_STATE_TOPIC
+          ]);
+
+          //サブスクライブ時の処理
+          // ここで、ロボットアームの状況を、仮想側に繁栄させたい
+          window.mqttClient.on('message', (topic, message) => {
+            if (topic == MQTT_ROBOT_STATE_TOPIC) {
+              if (vr_mode == false) {
+                let data = JSON.parse(message.toString())
+                console.log("Receive_State", data)
+                //const dt = q2joint(data)
+                //                        console.log("Joints", dt)
+                set_rotate(dt)
+                receive_state = true;
+
+                // ここで定期的に設定が必要
+                publish = true
+              }
+            }
+          });
+        }
+
       }
     }
   }, [typeof window])
