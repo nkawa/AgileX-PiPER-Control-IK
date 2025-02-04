@@ -3,6 +3,15 @@ import * as React from 'react'
 import * as THREE from 'three';
 import Controller from './controller.js'
 
+
+import { connectMQTT, mqttclient, subscribeMQTT, publishMQTT } from './MQTT.js'
+const MQTT_CTRL_TOPIC = "piper/vr";
+const MQTT_ROBOT_STATE_TOPIC = "piper/real";
+
+let publish = true //VRモードに移行するまではMQTTをpublishしない（かつ、ロボット情報を取得するまで）
+let receive_state = true // ロボットの状態を受信してるかのフラグ
+
+
 export default function Home() {
   const [now, setNow] = React.useState(new Date())
   const [rendered,set_rendered] = React.useState(false)
@@ -45,6 +54,9 @@ export default function Home() {
 
   const [controller_object,set_controller_object] = React.useState(new THREE.Object3D())
   const [trigger_on,set_trigger_on] = React.useState(false)
+  const [grip_on, set_grip_on] = React.useState(false)
+  const [button_a_on, set_button_a_on] = React.useState(false)
+  const [button_b_on, set_button_b_on] = React.useState(false)
   const [start_pos,set_start_pos] = React.useState(new THREE.Vector4())
   const [save_target,set_save_target] = React.useState()
   const [vr_mode,set_vr_mode] = React.useState(false)
@@ -519,8 +531,10 @@ export default function Home() {
 
     const wk_j4_angle_C = toAngle(p16_zero_pos.sub(j5_center_pos).angleTo(p16_pos.sub(j5_center_pos)))
     const direction_offset = normalize180(wrist_direction - wk_j1_rotate)
+
     const j4_base = wk_j4_angle_C * (direction_offset<0?-1:1)
     let wk_j4_rotate = normalize180((j4_base))*(j5_minus?-1:1)
+
     if(wk_j4_rotate<-90){
       wk_j4_rotate = normalize180((j4_base-(j4_base+90)*2))
     }else
@@ -653,6 +667,25 @@ export default function Home() {
     return {k:kakudo, t:takasa}
   }
 
+  // XR のレンダリングフレーム毎に MQTTを呼び出したい
+  const onXRFrameMQTT = (time, frame)=> {
+    // for next frame
+    frame.session.requestAnimationFrame(onXRFrameMQTT);
+
+    if ((mqttclient != null) && publish) {
+
+    // MQTT 送信
+      const ctl_json = JSON.stringify({
+        time: time,
+        rotate: rotate,
+        trigger: [grip_on, button_a_on, button_b_on]
+      });
+
+      publishMQTT(MQTT_CTRL_TOPIC, ctl_json);
+    }
+
+  }
+
   React.useEffect(() => {
     if(rendered){
       const box15_result = getposq(p15_object)
@@ -671,7 +704,7 @@ export default function Home() {
     if (typeof window !== "undefined") {
       require("aframe");
       setTimeout(set_rendered(true),1)
-      console.log('set_rendered')
+//      console.log('set_rendered')
 
       if(!registered){
         registered = true
@@ -765,14 +798,27 @@ export default function Home() {
               set_save_target(undefined)
               set_trigger_on(false)
             });
+            this.el.addEventListener('gripdown', (evt) => {
+              set_grip_on(true);
+            });
+            this.el.addEventListener('gripup', (evt) => {
+              set_grip_on(false);
+            });
           }
         });
         AFRAME.registerComponent('scene', {
           schema: {type: 'string', default: ''},
           init: function () {
+            this.el.lastsent = 0; //最終 MQTT 伝送時刻
             this.el.addEventListener('enter-vr', ()=>{
               set_vr_mode(true)
               console.log('enter-vr')
+
+              let xrSession = this.el.renderer.xr.getSession();
+              xrSession.requestAnimationFrame(onXRFrameMQTT);
+
+              //set_target({x:target.x,y:target.y,z:target.z*-1})
+
             });
             this.el.addEventListener('exit-vr', ()=>{
               set_vr_mode(false)
@@ -780,6 +826,35 @@ export default function Home() {
             });
           }
         });
+
+        
+        // MQTT 関係
+        if (typeof window.mqttClient === 'undefined') {
+          //サブスクライブするトピックの登録
+          window.mqttClient = connectMQTT();
+          subscribeMQTT([
+            MQTT_ROBOT_STATE_TOPIC
+          ]);
+
+          //サブスクライブ時の処理
+          // ここで、ロボットアームの状況を、仮想側に繁栄させたい
+          window.mqttClient.on('message', (topic, message) => {
+            if (topic == MQTT_ROBOT_STATE_TOPIC) {
+              if (vr_mode == false) {
+                let data = JSON.parse(message.toString())
+                console.log("Receive_State", data)
+                //const dt = q2joint(data)
+                //                        console.log("Joints", dt)
+                set_rotate(dt)
+                receive_state = true;
+
+                // ここで定期的に設定が必要
+                publish = true
+              }
+            }
+          });
+        }
+
       }
     }
   }, [typeof window])
