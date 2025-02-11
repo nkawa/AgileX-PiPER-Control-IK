@@ -8,15 +8,16 @@ import mqtt from 'mqtt'
 const MQTT_BROKER_URL = "wss://sora2.uclab.jp/mqws"; // ちゃんと URL じゃないと証明書がダメだからダメ！
 //const MQTT_BROKER_URL = "wss://192.168.207.22/mqws"; // IP address ではダメｗ
 
+import {userUUID} from './cookie_id';
+
 // global private variable
 export var mqttclient = null;
 
 
-// 本来であれば、デバイスIDなどを設定したい。（しかしブラウザは厳しい。Cookieでやるべきだね）
+// 本来であれば、デバイスIDなどを設定したい。（しかしブラウザは厳しい。Cookieでやるべき）
 export const connectMQTT = () => {
     if (mqttclient == null) {
-        console.log("New MQTT");
-        const client = new mqtt.connect(MQTT_BROKER_URL);
+        const client = new mqtt.connect(MQTT_BROKER_URL, {protocolVersion: 5}); // noLocal を指定するため Version5 で接続
         client.on("connect", () => {
             console.log("MQTT Connected", client);
 
@@ -30,10 +31,11 @@ export const connectMQTT = () => {
                     platform: navigator.platform,
                     cookie: navigator.cookieEnabled
                 },
-                devId: "piper"
+                codeType: 'browser-piper',
+                devId: userUUID
             }
             client.publish('dev/register', JSON.stringify(info)) // for other devices.
-            client.publish('dev/piper' , JSON.stringify({ date: date.toLocaleString() })) // Just date for record
+            client.publish('dev/'+userUUID , JSON.stringify({ date: date.toLocaleString() })) // Just date for record
 
         });
         client.on('error', function (err) {
@@ -49,9 +51,9 @@ export const subscribeMQTT = (topic) => {
     if (mqttclient == null) {
         connectMQTT();
     }
-    mqttclient.subscribe(topic, (err) => {
+    mqttclient.subscribe(topic, {noLocal: true}, (err, granted) => {
         if (!err) {
-            console.log('MQTT Subscribe topics', topic);
+            console.log('MQTT Subscribe topics', topic, granted);
         } else {
             console.error('MQTT Subscription error: ', err);
         }
