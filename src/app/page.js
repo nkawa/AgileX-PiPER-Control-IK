@@ -45,7 +45,8 @@ export default function Home() {
   const [p13_object,set_p13_object] = React.useState()
   const [p14_object,set_p14_object] = React.useState()
   const [p15_object,set_p15_object] = React.useState()
-  const [p16_object,set_p16_object] = React.useState()
+  const [p16_object,set_p16_object] = React.useState(new THREE.Object3D())
+  const targetRef = React.useRef(null);
   const [p20_object,set_p20_object] = React.useState()
   const [p21_object,set_p21_object] = React.useState()
   const [p22_object,set_p22_object] = React.useState()
@@ -108,6 +109,7 @@ export default function Home() {
   }
 
   const [target,set_target] = React.useState({x:0.05,y:0.43,z:-0.26})
+  const [vr_target, set_vr_target]= React.useState({x:0.05,y:0.43,z:-0.26}); // VR モードに入るときに設定すべきターゲット
   const [p15_16_len,set_p15_16_len] = React.useState(joint_pos.j7.z)
   const [p14_maxlen,set_p14_maxlen] = React.useState(0)
  
@@ -320,7 +322,7 @@ export default function Home() {
   }, [button_a_on]);
 
   React.useEffect(() => {
-    buttonaRef.current = button_b_on; // useEffect で最新の state を ref に格納
+    buttonbRef.current = button_b_on; // useEffect で最新の state を ref に格納
   }, [button_b_on]);
 
   React.useEffect(() => {
@@ -893,6 +895,7 @@ export default function Home() {
             }else
             if(this.data === 16){
               set_p16_object(this.el.object3D)
+              targetRef.current = this.el.object3D; // ここでTool の先のTarget のref を取得
             }else
             if(this.data === 20){
               set_p20_object(this.el.object3D)
@@ -952,6 +955,8 @@ export default function Home() {
           init: function () {
             this.el.lastsent = 0; //最終 MQTT 伝送時刻
             this.el.addEventListener('enter-vr', ()=>{
+              console.log("Now set vr_target!!",vr_target);
+              set_target(vr_target); // すでに設定されているはず
               set_vr_mode(true)
               console.log('enter-vr')
 
@@ -967,7 +972,6 @@ export default function Home() {
               set_c_deg_y(0)
               set_c_deg_z(0)
 
-              //set_target({x:target.x,y:target.y,z:target.z*-1})
 
             });
             this.el.addEventListener('exit-vr', ()=>{
@@ -1001,6 +1005,16 @@ export default function Home() {
                     let j = data.joints;
                     set_input_rotate([j[0]/1000,j[1]/1000,j[2]/1000,j[3]/1000,j[4]/1000,j[5]/1000,j[6]/1000]);
                     // 同時に TCP (Target も変更が必要！)
+                    // target 位置の計算！
+                    const wpos = new THREE.Vector3();
+                    targetRef.current.getWorldPosition(wpos);
+                    console.log("SetVR_Target ",wpos,target);
+                    set_vr_target((vr)=>{
+                        vr.x = wpos.x; vr.y = wpos.y; vr.z = wpos.z;
+                        return vr
+                      }
+                    );
+
                     receive_state = true;
                 // ここで定期的に設定が必要
                     publish = true
