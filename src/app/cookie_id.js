@@ -1,4 +1,4 @@
-
+"use client";
 
 function getOrSetUUID() {
     const cookieName = "sip3m_uuid";

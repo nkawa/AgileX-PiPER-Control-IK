@@ -13,6 +13,17 @@ const nextConfig = {
    
     // Optional: Change the output directory `out` -> `dist`
     // distDir: 'dist',
+
+/*    webpack: (config, {isServer})=>{
+      if (!isServer) {
+        config.externals = {
+          ...config.externals,
+          three: 'AFRAME.THREE'
+        };
+      }
+      return config
+    }
+*/
   }
    
   module.exports = nextConfig
