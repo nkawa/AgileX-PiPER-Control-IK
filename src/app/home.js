@@ -4,11 +4,10 @@ import * as React from 'react'
 import Controller from './controller.js'
 import 'aframe';
 
-
 import { connectMQTT, mqttclient, subscribeMQTT, publishMQTT } from './MQTT.js'
 const MQTT_CTRL_TOPIC = "piper/vr";
 const MQTT_ROBOT_STATE_TOPIC = "piper/real";
-const THREE = window.AFRAME.THREE;
+const THREE = window.AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
 
 let publish = true //VRモードに移行するまではMQTTをpublishしない（かつ、ロボット情報を取得するまで）
 let receive_state = false // ロボットの状態を受信してるかのフラグ
@@ -32,7 +31,7 @@ export default function DynamicHome() {
     const [j7_rotate,set_j7_rotate] = React.useState(24) //指用
   
     const [rotate, set_rotate] = React.useState([0,0,0,0,0,0,0])  //出力用
-    const [input_rotate, set_input_rotate] = React.useState([0,0,0,0,0,0,0])  //入力用
+    const [input_rotate, set_input_rotate] = React.useState([0.00001,0.00001,0.000001,0.000001,0.00001,0.000001,0.00001])  //入力用
   
     const [j1_object,set_j1_object] = React.useState()
     const [j2_object,set_j2_object] = React.useState()
@@ -202,7 +201,7 @@ export default function DynamicHome() {
       if (j3_object !== undefined) {
         j3_object.quaternion.setFromAxisAngle(x_vec_base,toRadian(j3_rotate))
         set_rotate((org)=>{
-          org[2] = round((j3_rotate-5)*-1,3)
+          org[2] = round((j3_rotate-5),3)
           return org
         })
       }
@@ -334,6 +333,12 @@ export default function DynamicHome() {
     
       }
     },[wrist_rot_x,wrist_rot_y,wrist_rot_z])
+
+
+    React.useEffect(()=>{
+      set_target(vr_target)
+    },[vr_target])
+
   
     const quaternionToRotation = (q,v)=>{
       const q_original = new THREE.Quaternion(q.x, q.y, q.z, q.w)
@@ -834,7 +839,7 @@ export default function DynamicHome() {
   
     React.useEffect(() => {
       if (typeof window !== "undefined") {
-        require("aframe");
+//        require("aframe");
         setTimeout(set_rendered(true),1)
   //      console.log('set_rendered')
   
@@ -1004,12 +1009,15 @@ export default function DynamicHome() {
                       let data = JSON.parse(message.toString())
     //                    console.log("Receive_State", s, vrm, data.joints)
                       let j = data.joints;
+//                      console.log("Receive_states", j)
                       set_input_rotate([j[0]/1000,j[1]/1000,j[2]/1000,j[3]/1000,j[4]/1000,j[5]/1000,j[6]/1000]);
                       // 同時に TCP (Target も変更が必要！)
                       // target 位置の計算！
+                      // forward kinematics をすべき。。。
+                      
                       const wpos = new THREE.Vector3();
                       targetRef.current.getWorldPosition(wpos);
-                      console.log("SetVR_Target ",wpos,target);
+//                      console.log("SetVR_Target ",wpos,targetRef.current);
                       set_vr_target((vr)=>{
                           vr.x = wpos.x; vr.y = wpos.y; vr.z = wpos.z;
                           return vr
@@ -1085,11 +1093,11 @@ export default function DynamicHome() {
             <a-camera id="camera" cursor="rayOrigin: mouse;" position="0 0 0"></a-camera>
           </a-entity>
           <a-sphere position={edit_pos(target)} scale="0.012 0.012 0.012" color={target_error?"red":"yellow"} visible={true}></a-sphere>
-          <a-box position={edit_pos(test_pos)} scale="0.03 0.03 0.03" color="green" visible={box_vis}></a-box>
+          {/*<a-box position={edit_pos(test_pos)} scale="0.03 0.03 0.03" color="green" visible={box_vis}></a-box>
           <Line pos1={{x:1,y:0.0001,z:1}} pos2={{x:-1,y:0.0001,z:-1}} visible={cursor_vis} color="white"></Line>
           <Line pos1={{x:1,y:0.0001,z:-1}} pos2={{x:-1,y:0.0001,z:1}} visible={cursor_vis} color="white"></Line>
           <Line pos1={{x:1,y:0.0001,z:0}} pos2={{x:-1,y:0.0001,z:0}} visible={cursor_vis} color="white"></Line>
-          <Line pos1={{x:0,y:0.0001,z:1}} pos2={{x:0,y:0.0001,z:-1}} visible={cursor_vis} color="white"></Line>
+          <Line pos1={{x:0,y:0.0001,z:1}} pos2={{x:0,y:0.0001,z:-1}} visible={cursor_vis} color="white"></Line>*/}
           {/*<a-cylinder j_id="51" color="green" height="0.1" radius="0.005" position={edit_pos({x:0.3,y:0.3,z:0.3})}></a-cylinder>*/}
         </a-scene>
         <Controller {...controllerProps}/>

@@ -34,7 +34,7 @@ export const connectMQTT = () => {
                 codeType: 'browser-piper',
                 devId: userUUID
             }
-            client.publish('dev/register', JSON.stringify(info)) // for other devices.
+            client.publish('dev/register', JSON.stringify(info)) // for other devices.// maybe retransmit each 10seconds?
             client.publish('dev/'+userUUID , JSON.stringify({ date: date.toLocaleString() })) // Just date for record
 
         });
