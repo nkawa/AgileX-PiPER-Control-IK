@@ -18,7 +18,6 @@ let registered = false; // グローバルで AFRAME register を確認
 
 
 export default function DynamicHome() {
-    const [now, setNow] = React.useState(new Date())
     const [rendered,set_rendered] = React.useState(false)
     const robotNameList = ["Model"]
     const [robotName,set_robotName] = React.useState(robotNameList[0])
@@ -119,12 +118,6 @@ export default function DynamicHome() {
     const [p15_16_len,set_p15_16_len] = React.useState(joint_pos.j7.z)
     const [p14_maxlen,set_p14_maxlen] = React.useState(0)
    
-    React.useEffect(function() {
-      const intervalId = setInterval(function() {
-        setNow(new Date());
-      }, 10);
-      return function(){clearInterval(intervalId)};
-    }, [now]);
   
     React.useEffect(() => {
       if(rendered && vr_mode && trigger_on){
@@ -843,20 +836,7 @@ export default function DynamicHome() {
       }
   
     }
-  
-    React.useEffect(() => {
-      if(rendered){
-        //const box15_result = getposq(p15_object)
-        //const p15_pos = getpos(box15_result.position)
-        //set_p15_pos(p15_pos)
-  
-        //const box16_result = getposq(p16_object)
-        //const p16_pos = getpos(box16_result.position)
-        //set_p16_pos(p16_pos)
-  
-        //set_p15_16_len(distance(p15_pos,p16_pos))
-      }
-    },[now])
+
   
     React.useEffect(() => {
       if (typeof window !== "undefined") {
@@ -982,12 +962,11 @@ export default function DynamicHome() {
               });
             },
             tick: function(time, deltaTime){
-                    // GripValue の状況に応じて
-              if (gripValueRef.current > 0.98){// 24から 89とする
-                set_j7_rotate((j7)=> j7>24? j7-1:j7)
+              if (gripValueRef.current > 0.99){// 24から 89とする
+                set_j7_rotate((j7)=> j7>24? j7-2:j7)
               }
               if (gripRef.current == false){
-                set_j7_rotate((j7)=> j7<89? j7+1:j7)
+                set_j7_rotate((j7)=> j7<89? j7+2:j7)
               }
             }
           });
