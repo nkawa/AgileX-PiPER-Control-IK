@@ -10,8 +10,8 @@ const MQTT_ROBOT_STATE_TOPIC = "piper/real";
 const THREE = window.AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
 
 let publish = true //VRモードに移行するまではMQTTをpublishしない（かつ、ロボット情報を取得するまで）
-//let receive_state = false // ロボットの状態を受信してるかのフラグ
-let receive_state = true // ロボットの状態を受信してるかのフラグ
+let receive_state = false // ロボットの状態を受信してるかのフラグ
+//let receive_state = true // ロボットの状態を受信してるかのフラグ
 let control_state = true // 自分がコントロールする人かどうか
 
 let registered = false; // グローバルで AFRAME register を確認
@@ -168,12 +168,6 @@ export default function DynamicHome() {
       }
     },[controller_object.rotation.x,controller_object.rotation.y,controller_object.rotation.z])
 
-    React.useEffect(() => {
-      // grip_value の値で、gropを制御
-
-
-    },[grip_value])
-
   
     React.useEffect(() => {
       if(rendered){
@@ -326,6 +320,12 @@ export default function DynamicHome() {
       }else{
         control_state = false;
       }
+      if (selectedMode === 'vc2'){
+        receive_state = true;
+      }else{
+        receive_state = false; // 安全のため
+      }
+
     }, [selectedMode])
   
     React.useEffect(() => {
@@ -334,6 +334,7 @@ export default function DynamicHome() {
   
     React.useEffect(() => {
       gripValueRef.current = grip_value; // useEffect で最新の state を ref に格納
+
     }, [grip_value]);
   
 
@@ -979,6 +980,15 @@ export default function DynamicHome() {
               this.el.addEventListener('bbuttonup', (evt) => {
                 set_button_b_on(false);
               });
+            },
+            tick: function(time, deltaTime){
+                    // GripValue の状況に応じて
+              if (gripValueRef.current > 0.98){// 24から 89とする
+                set_j7_rotate((j7)=> j7>24? j7-1:j7)
+              }
+              if (gripRef.current == false){
+                set_j7_rotate((j7)=> j7<89? j7+1:j7)
+              }
             }
           });
           AFRAME.registerComponent('scene', {

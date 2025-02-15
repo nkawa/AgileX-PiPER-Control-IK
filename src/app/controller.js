@@ -6,8 +6,9 @@ import "./controller.css";
   const ModeSelector = ({ selectedMode, setSelectedMode }) => {
   
     const modes = [
-      { id: 'control', label: 'Ctrl' }, // 通常の制御モード（VRゴーグル等で操作）
-      { id: 'monitor', label: 'Mon' },  // 実ロボットをモニター
+      { id: 'control', label: 'Ctl' }, // 通常のロボット制御モード（VRゴーグル等で操作）
+      { id: 'vc2', label: 'VC' },       // 通常のVR制御モード（VRゴーグル等で操作。ロボットなし）
+      { id: 'monitor', label: 'Mn' },  // 実ロボットをモニター
       { id: 'vr', label: 'fromVR' }     // 制御トピックをモニター(VRゴーグルからの制御)
     ];
   
