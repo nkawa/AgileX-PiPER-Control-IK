@@ -997,8 +997,8 @@ export default function DynamicHome() {
   
                 // ここでカメラ位置を変更します
                 set_c_pos_x(0)
-                set_c_pos_y(-0.5)
-                set_c_pos_z(0.70)
+                set_c_pos_y(-0.6)
+                set_c_pos_z(0.90)
                 set_c_deg_x(0)
                 set_c_deg_y(0)
                 set_c_deg_z(0)
@@ -1102,7 +1102,7 @@ export default function DynamicHome() {
       <>
         <a-scene scene xr-mode-ui="XRMode: ar">
           <a-entity oculus-touch-controls="hand: right" vr-controller-right visible="false"></a-entity>
-          <a-plane position="0 0 0" rotation="-90 0 0" width="10" height="10" color={target_error?"#ff7f50":"#7BC8A4"}></a-plane>
+          <a-plane position="0 0 0" rotation="-90 0 0" width="0.4" height="0.4" color={target_error?"#ff7f50":"#7BC8A4"} opacity="0.5"></a-plane>          
           <Assets/>
           <Select_Robot {...robotProps}/>
           <Cursor3dp j_id="20" pos={{x:0,y:0,z:0}} visible={cursor_vis}>
@@ -1133,7 +1133,7 @@ export default function DynamicHome() {
       );
     }else{
       return(
-        <a-scene>
+        <a-scene xr-mode-ui="XRMode: ar">
           <Assets/>
         </a-scene>
       )
