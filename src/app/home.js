@@ -10,8 +10,12 @@ const MQTT_ROBOT_STATE_TOPIC = "piper/real";
 const THREE = window.AFRAME.THREE; // これで　AFRAME と　THREEを同時に使える
 
 let publish = true //VRモードに移行するまではMQTTをpublishしない（かつ、ロボット情報を取得するまで）
-let receive_state = false // ロボットの状態を受信してるかのフラグ
+//let receive_state = false // ロボットの状態を受信してるかのフラグ
+let receive_state = true // ロボットの状態を受信してるかのフラグ
 let control_state = true // 自分がコントロールする人かどうか
+
+let registered = false; // グローバルで AFRAME register を確認
+
 
 export default function DynamicHome() {
     const [now, setNow] = React.useState(new Date())
@@ -58,7 +62,10 @@ export default function DynamicHome() {
     const [controller_object,set_controller_object] = React.useState(new THREE.Object3D())
     const [trigger_on,set_trigger_on] = React.useState(false)
     const [grip_on, set_grip_on] = React.useState(false);
+    const [grip_value, set_grip_value] = React.useState(0);
     const gripRef = React.useRef(null);
+    const gripValueRef = React.useRef(null);
+
     const [button_a_on, set_button_a_on] = React.useState(false);
     const buttonaRef = React.useRef(null);
     const [button_b_on, set_button_b_on] = React.useState(false)
@@ -87,7 +94,6 @@ export default function DynamicHome() {
   
     const toolNameList = ["No tool"]
     const [toolName,set_toolName] = React.useState(toolNameList[0])
-    let registered = false
   
     const [x_vec_base,set_x_vec_base] = React.useState()
     const [y_vec_base,set_y_vec_base] = React.useState()
@@ -146,19 +152,28 @@ export default function DynamicHome() {
         .multiply(
           new THREE.Matrix4().makeRotationFromEuler(
             new THREE.Euler(
-              (0.6654549523360951*-1),  //x
+              ((0.6654549523360951)*-1),  //x
               toRadian(180),  //y
               toRadian(180),  //z
               controller_object.rotation.order
             )
           )
         )
-        const wk_euler = new THREE.Euler().setFromRotationMatrix(wk_mtx,controller_object.rotation.order)
+        // コントローラとの差を180度補正（nkawa)
+        const wk2_mtx = wk_mtx.multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0,0,toRadian(180),controller_object.rotation.order)))
+        const wk_euler = new THREE.Euler().setFromRotationMatrix(wk2_mtx,controller_object.rotation.order)
         set_wrist_rot_x(round(toAngle(wk_euler.x)))
         set_wrist_rot_y(round(toAngle(wk_euler.y)))
-        set_wrist_rot_z(round(toAngle(wk_euler.z)))
+        set_wrist_rot_z(round(toAngle(wk_euler.z)-180))
       }
     },[controller_object.rotation.x,controller_object.rotation.y,controller_object.rotation.z])
+
+    React.useEffect(() => {
+      // grip_value の値で、gropを制御
+
+
+    },[grip_value])
+
   
     React.useEffect(() => {
       if(rendered){
@@ -201,7 +216,7 @@ export default function DynamicHome() {
       if (j3_object !== undefined) {
         j3_object.quaternion.setFromAxisAngle(x_vec_base,toRadian(j3_rotate))
         set_rotate((org)=>{
-          org[2] = round((j3_rotate-5),3)
+          org[2] = round((j3_rotate-165),3)
           return org
         })
       }
@@ -295,7 +310,7 @@ export default function DynamicHome() {
   
     const get_j5_quaternion = (rot_x=wrist_rot_x,rot_y=wrist_rot_y,rot_z=wrist_rot_z)=>{
       return new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(toRadian(rot_x), toRadian(rot_y), toRadian(rot_z), order)
+        new THREE.Euler(toRadian(rot_x), toRadian(rot_y), toRadian(rot_z+180), order)
       )
     }
   
@@ -317,6 +332,11 @@ export default function DynamicHome() {
       gripRef.current = grip_on; // useEffect で最新の state を ref に格納
     }, [grip_on]);
   
+    React.useEffect(() => {
+      gripValueRef.current = grip_value; // useEffect で最新の state を ref に格納
+    }, [grip_value]);
+  
+
     React.useEffect(() => {
       buttonaRef.current = button_a_on; // useEffect で最新の state を ref に格納
     }, [button_a_on]);
@@ -815,7 +835,7 @@ export default function DynamicHome() {
         const ctl_json = JSON.stringify({
           time: time,
           joints: rotate,
-          trigger: [gripRef.current, buttonaRef.current, buttonbRef.current]
+          trigger: [gripRef.current, buttonaRef.current, buttonbRef.current,gripValueRef.current]
         });
   
         publishMQTT(MQTT_CTRL_TOPIC, ctl_json);
@@ -939,6 +959,10 @@ export default function DynamicHome() {
               this.el.addEventListener('gripdown', (evt) => {
                 set_grip_on(true);
               });
+              this.el.addEventListener('gripchanged', (evt) => {
+//                console.log("Grip Value", evt.detail.value);
+                set_grip_value(evt.detail.value);  
+              });
               this.el.addEventListener('gripup', (evt) => {
                 set_grip_on(false);
               });
@@ -949,6 +973,7 @@ export default function DynamicHome() {
                 set_button_a_on(false);
               });
               this.el.addEventListener('bbuttondown', (evt) => {
+                set_input_rotate([0,0,0,0,0,0,0]);
                 set_button_b_on(true);
               });
               this.el.addEventListener('bbuttonup', (evt) => {
@@ -1040,7 +1065,7 @@ export default function DynamicHome() {
                     let data = JSON.parse(message.toString())
                     console.log("Receive_Ctrl",  data.joints)
                     let j = data.joints;
-                    set_input_rotate([j[0],j[1],-j[2]-160,j[3],j[4],j[5],j[6]]);
+                    set_input_rotate([j[0],j[1],j[2],j[3],j[4],j[5],j[6]]);
                   }
                   return s;
                 });
@@ -1075,8 +1100,8 @@ export default function DynamicHome() {
     if(rendered){
       return (
       <>
-        <a-scene scene>
-          <a-entity oculus-touch-controls="hand: right" vr-controller-right visible={false}></a-entity>
+        <a-scene scene xr-mode-ui="XRMode: ar">
+          <a-entity oculus-touch-controls="hand: right" vr-controller-right visible="false"></a-entity>
           <a-plane position="0 0 0" rotation="-90 0 0" width="10" height="10" color={target_error?"#ff7f50":"#7BC8A4"}></a-plane>
           <Assets/>
           <Select_Robot {...robotProps}/>
